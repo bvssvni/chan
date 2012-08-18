@@ -1,0 +1,79 @@
+
+	Chan - Safe concurrency in C
+	by Sven Nilsen, 2012
+	http://www.cutoutpro.com
+	
+	Version: 0.000 in angular degrees version notation
+	http://isprogrammingeasy.blogspot.no/2012/08/angular-degrees-versioning-notation.html
+	
+	x.000 - x.179	Alpha
+	x.180 - x.269	Beta
+	x.270 - x.359	Release Candidate
+	x.360 - x.999	Release updates.
+	
+	Today I was learning Go and I watched a Google Talk about Newsqueak.
+	This is the first time I got my head around what concurrency was about.
+	As I watched this talk by Rob Pike, I figured out I could make this in C.
+	
+	This is a macro in a few lines of code lets you make a channel like in Go.
+	One difference is that multiplexing can be turned on or off for safety.
+	
+	How to compile example "chan-main.c" on Windows:
+	
+		gcc -Wall -o chan-main.exe chan-main.c -lpthread
+	
+	I used MinGW and Notepad++ on Windows. Tthe example code uses
+	windows.h because POSIX sleep() is not found for some reason.
+	Need to test it both on Linux and Mac Os.
+	
+	How to use the macro:
+	
+	#include "chan.h"									// Include header.
+	
+	CHAN_TYPE_DECLARE(<type>)							// Header stuff.
+	CHAN_TYPE(<type>)									// C file stuff.
+	
+	// This type of declaration resets to default values.
+	chan_<type> c = {}
+	
+	// When declaring an array of channels, use memset to set default values.
+	chan_<type> arr[3];
+	memset(arr, 0, sizeof(chan_<type>)*3);
+	
+	// Read stuff.
+	int err = chan_<type>_read(chan_<type> *c, <type> *val);
+	
+	// Write stuff.
+	int err = chan_<type>_write(chan_<type> *c, <type> val);
+	
+	// Read from any channel in array.
+	int err = chan_<type>_read_any(int cn, chan_<type> c[], <type> *val, int *index);
+	
+	// Close channel.
+	chan_<type>.disconnected = 1;
+	
+	// Check for new messages.
+	if (chan_<type>.unopened) printf("You got mail!\r\n");
+	
+	// Activate multiplexing (off by default to avoid dead locks).
+	// This will cause threads waiting for the one writing to finish.
+	chan_<type>.mux = 1;
+	
+	Check the returned value for errors on reading and writing:
+	
+		CHAN_ERROR_DISCONNECTED
+	
+			When reading from any channel in an array, the disconnected ones
+			will be ignored, but if all channels are disconnected, then the
+			above error will be returned.
+			
+		CHAN_ERROR_CAN_ONLY_HAVE_ONE_WRITER
+
+			When multiplexing is off and one thread attempts to write while
+			another thread is writing, the error above is returned.
+		
+		CHAN_ERROR_CAN_ONLY_HAVE_ONE_READER
+		
+			When multiplexing is off and one thread attempts to read while
+			another thread is reading, the error above is returned.
+	

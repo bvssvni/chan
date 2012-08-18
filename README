@@ -28,10 +28,10 @@ Need to test it both on Linux and Mac Os.
 
 How to use the macro:
 
-#include "chan.h"							// Include header.
+#include "chan.h"					// Include header.
 
-CHAN_TYPE_DECLARE(<type>)					// Header stuff.
-CHAN_TYPE(<type>)							// C file stuff.
+CHAN_TYPE_DECLARE(<type>)			// Header stuff.
+CHAN_TYPE(<type>)					// C file stuff.
 
 // This type of declaration resets to default values.
 chan_<type> c = {}

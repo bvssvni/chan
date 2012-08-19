@@ -22,7 +22,7 @@ How to compile example "chan-main.c" on Windows:
 
 	gcc -Wall -o chan-main.exe chan-main.c -lpthread
 
-I used MinGW and Notepad++ on Windows. Tthe example code uses
+I used MinGW and Notepad++ on Windows. The example code uses
 windows.h because POSIX sleep() is not found for some reason.
 Need to test it both on Linux and Mac Os.
 

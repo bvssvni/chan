@@ -38,7 +38,10 @@ CHAN_TYPE_DECLARE(<type>)
 CHAN_TYPE(<type>)
 
 // This type of declaration resets to default values.
-chan_<type> c = {}
+chan_<type> c = {};
+
+// This type of declaration allow multiplexing on the channel.
+chan_<type> c = {.mux = 1};
 
 // When declaring an array of channels, use memset to set default values.
 chan_<type> arr[3];

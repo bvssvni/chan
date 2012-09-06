@@ -113,8 +113,7 @@ for (macro_i = 0; macro_i < macro_size; macro_i++) { \
 gcKeep(a); \
 gcEnd(); \
 return a;
-#define gcReturnNULL() gcEnd(); return NULL
-#define gcSet(a, ...) gcUnkeep(a); a = __VA_ARGS__
+#define gcSet(a, ...) gcUnkeep(a); a = (__VA_ARGS__)
 #define gcRef(a) (ref**)&a
 #define gcStart(...) ref **refs[] = {__VA_ARGS__}
 

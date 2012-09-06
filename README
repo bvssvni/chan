@@ -24,7 +24,7 @@ The type of garbage collection is reference counting, with some modifications.
 In reference counting, each struct has a counter which releases the memory
 when it reaches 0. In addition there is a function pointing to a destructor
 which unkeep pointers within the struct. Human mistakes is a common problem,
-since keeping making sure all variables are released can be a tedious task.
+since making sure all variables are released can be a tedious task.
 The solution is elegant: An array is allocated on the stack to keep track of
 the variables and collect memory that is not already released or to be used
 outside the function. The array consists of pointer-pointers because NULL
@@ -64,7 +64,12 @@ point *point_add(point *a, point *b)
 }
 
 // Return NULL from a function.
-gcReturnNULL();
+gcEnd();
+return NULL;
+
+// When there is no return value:
+gcEnd();
+return;
 
 // Use gcSet for assignment.
 gcSet(a, &(point){.x = 2, .y = 3});

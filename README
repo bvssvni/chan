@@ -30,7 +30,7 @@ the variables and collect memory that is not already released or to be used
 outside the function. The array consists of pointer-pointers because NULL
 checks require access to the variable pointer and not only the address.
 The result is that the ownership of memory is nicely tied to the function.
-This also encourags simple and clean code.
+This also encourages simple and clean code.
 
 How to use the macro:
 
@@ -56,7 +56,7 @@ point *point_add(point *a, point *b)
 	// 3. NULL - Destructor function "void f(void *ptr)" for internal pointers.
 	// 4. Code for initialization, all other data is set to 0.
 	gcInit(point, c, NULL, .x = a->x + b->x, .y = a->y + b->y);
-	// This mandatory array contains pointers to collect.
+	// Creates mandatory array for pointers to be collected.
 	gcStart(gcRef(c));
 	// When returning a pointer, use gcReturn.
 	// This will automatically do garbage collection.
@@ -72,8 +72,11 @@ gcEnd();
 return;
 
 // Use gcSet for assignment.
-gcSet(a, &(point){.x = 2, .y = 3});
 gcSet(a, point_add(a, b));
+
+// Assigning a local pointer with gcSet is not NOT A GOOD IDEA.
+// Instead use 'gcCopy', which keeps the ref data intact.
+gcCopy(a, &(point){.x = 2, .y = 3});
 
 // When a function returns an unused pointer, unkeep it.
 gcUnkeep(point_add(a, b));

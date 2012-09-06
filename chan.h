@@ -114,6 +114,11 @@ gcKeep(a); \
 gcEnd(); \
 return a;
 #define gcSet(a, ...) gcUnkeep(a); a = (__VA_ARGS__)
+#define gcCopy(a, ...) do { \
+	ref macro_ref = a->ref; \
+	*a = *(__VA_ARGS__); \
+	a->ref = macro_ref; \
+} while (0);
 #define gcRef(a) (ref**)&a
 #define gcStart(...) ref **refs[] = {__VA_ARGS__}
 

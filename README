@@ -1,28 +1,103 @@
 
-Chan - Safe concurrency in C
+Chan - Less than 100 LOC: Safe concurrency channels and garbage collection in C.
+BSD license.
 by Sven Nilsen, 2012
 http://www.cutoutpro.com
 
-Version: 0.000 in angular degrees versioning notation
+Version: 0.001 in angular degrees versioning notation
 http://isprogrammingeasy.blogspot.no/2012/08/angular-degrees-versioning-notation.html
-
-x.000 - x.179	Alpha
-x.180 - x.269	Beta
-x.270 - x.359	Release Candidate
-x.360 - x.999	Release updates.
-
-Today I was learning Go and I watched a Google Talk about Newsqueak.
-This is the first time I got my head around what concurrency was about.
-As I watched this talk by Rob Pike, I figured out I could make this in C.
-
-This is a macro in a few lines of code lets you make a channel like in Go.
-One difference is that multiplexing can be turned on or off for safety.
 
 How to compile example "chan-main.c" on Windows:
 
 	gcc -Wall -o chan-main.exe chan-main.c -lpthread
 
-I used MinGW and Notepad++ on Windows.
+I have tested with MinGW and Notepad++ on Windows XP 32 bit.
+
+As a pragmatic programmer, this library is written for _my_ needs, not yours.
+The channels can be separated from the garbage collection and used independent.
+
+________________________________________________________________________________
+GARBAGE COLLECTION
+
+The type of garbage collection is reference counting, with some modifications.
+
+In reference counting, each struct has a counter which releases the memory
+when it reaches 0. In addition there is a function pointing to a destructor
+which unkeep pointers within the struct. Human mistakes is a common problem,
+since keeping making sure all variables are released can be a tedious task.
+The solution is elegant: An array is allocated on the stack to keep track of
+the variables and collect memory that is not already released or to be used
+outside the function. The array consists of pointer-pointers because NULL
+checks require access to the variable pointer and not only the address.
+The result is that the ownership of memory is nicely tied to the function.
+This also encourags simple and clean code.
+
+How to use the macro:
+
+// Include header.
+#include "chan.h"
+
+How to make a struct garbage collected:
+
+typedef struct point
+{
+	// Declare this line at the beginning of every struct.
+	ref ref;
+	double x, y;
+} point;
+
+How to use garbage collection in a function:
+
+point *point_add(point *a, point *b) 
+{
+	// Declare variable and initialize it.
+	// 1. point - The type of struct.
+	// 2. c - The variable name.
+	// 3. NULL - Destructor function "void f(void *ptr)" for internal pointers.
+	// 4. Code for initialization, all other data is set to 0.
+	gcInit(point, c, NULL, .x = a->x + b->x, .y = a->y + b->y);
+	// This mandatory array contains pointers to collect.
+	gcStart(gcRef(c));
+	// When returning a pointer, use gcReturn.
+	// This will automatically do garbage collection.
+	gcReturn(c);
+}
+
+// Return NULL from a function.
+gcReturnNULL();
+
+// Use gcSet for assignment.
+gcSet(a, &(point){.x = 2, .y = 3});
+gcSet(a, point_add(a, b));
+
+// When a function returns an unused pointer, unkeep it.
+gcUnkeep(point_add(a, b));
+
+// Nesting functions without assigning the return value will result in leak.
+point_add(point_add(a, b), c);
+
+// Create an array of pointer-pointers to be collected.
+gcStart(gcRef(a), gcRef(b), gcRef(c), ...)
+
+// Do garbage collection.
+gcEnd();
+
+// Increase reference counter.
+// Useful in constructors.
+gcKeep(a);
+
+// Decrease reference counter.
+// Useful in destructors.
+gcUnkeep(a);
+
+
+________________________________________________________________________________
+CHANNELS
+
+Instead of making every function thread safe it is only necessary to make the 
+communication between threads safe. The channels are unbuffered and
+synchronized and multiplexing is turned off by default, since two-threads
+communication easily leads to dead locks by human error.
 
 How to use the macro:
 
@@ -48,7 +123,7 @@ memset(arr, 0, sizeof(chan_<type>)*3);
 // Read stuff.
 int err = chan_<type>_read(chan_<type> *c, <type> *val);
 
-// Write stuff.
+// Write stuff, the struct is sent by value.
 int err = chan_<type>_write(chan_<type> *c, <type> val);
 
 // Read from any channel in array.
@@ -66,18 +141,18 @@ chan_<type>.mux = 1;
 
 Check the returned value for errors on reading and writing:
 
-	CHAN_ERROR_DISCONNECTED
+CHAN_ERROR_DISCONNECTED
 
-		When reading from any channel in an array, the disconnected ones
-		will be ignored, but if all channels are disconnected, then the
-		above error will be returned.
+	When reading from any channel in an array, the disconnected ones
+	will be ignored, but if all channels are disconnected, then the
+	above error will be returned.
 		
-	CHAN_ERROR_CAN_ONLY_HAVE_ONE_WRITER
+CHAN_ERROR_CAN_ONLY_HAVE_ONE_WRITER
 
-		When multiplexing is off and one thread attempts to write while
-		another thread is writing, the error above is returned.
-	
-	CHAN_ERROR_CAN_ONLY_HAVE_ONE_READER
-	
-		When multiplexing is off and one thread attempts to read while
-		another thread is reading, the error above is returned.
+	When multiplexing is off and one thread attempts to write while
+	another thread is writing, the error above is returned.
+
+CHAN_ERROR_CAN_ONLY_HAVE_ONE_READER
+
+	When multiplexing is off and one thread attempts to read while
+	another thread is reading, the error above is returned.

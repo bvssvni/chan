@@ -1,16 +1,11 @@
 /*
-	Chan - Concurrency in c
+	Chan - Concurrency in C
+	BSD license.
 	by Sven Nilsen, 2012
 	http://www.cutoutpro.com
 
-	(Copy this if you use degrees notation, including this note)
-	Version: 0.000 in angular degrees version notation
+	Version: 0.001 in angular degrees version notation
 	http://isprogrammingeasy.blogspot.no/2012/08/angular-degrees-versioning-notation.html
-	
-	x.000 - x.179	Alpha
-	x.180 - x.269	Beta
-	x.270 - x.359	Release Candidate
-	x.360 - x.999	Release updates.
 */
 /*
 Redistribution and use in source and binary forms, with or without
@@ -37,6 +32,8 @@ either expressed or implied, of the FreeBSD Project.
 #ifndef CHAN_GUARD
 #define CHAN_GUARD
 #include <unistd.h>
+
+/* Channels for concurrency communication. */
 #define CHAN_ERROR_DISCONNECTED 1
 #define CHAN_ERROR_CAN_ONLY_HAVE_ONE_WRITER 2
 #define CHAN_ERROR_CAN_ONLY_HAVE_ONE_READER 3
@@ -83,4 +80,42 @@ int chan_##type##_read_any(int cn, chan_##type c[], type *val, int *index) {\
 	}\
 	return -1;\
 }
+
+/* Garbage collection using reference counting. */
+typedef struct ref {int keep; void (*delete)(void*);} ref;
+#define gcInit(type, name, destructor, ...) \
+type *name = malloc(sizeof(type)); \
+*name = (type){__VA_ARGS__}; \
+name->ref.delete = destructor;
+#define gcKeep(a) \
+a->ref.keep++;
+#define gcUnkeep(a) do {\
+if (a != NULL && --a->ref.keep < 0) { \
+	if (a->ref.delete != NULL) a->ref.delete(a); \
+	free(a); \
+	a = NULL; \
+} } while (0);
+#define gcEnd() do { \
+int macro_size = sizeof(refs)/sizeof(ref*); \
+int macro_i; \
+ref *macro_item; \
+for (macro_i = 0; macro_i < macro_size; macro_i++) { \
+	macro_item = *refs[macro_i]; \
+	if (macro_item == NULL) continue; \
+	if (--macro_item->keep < 0) { \
+		if (macro_item->delete != NULL) macro_item->delete(macro_item); \
+		free(macro_item); \
+		*refs[macro_i] = NULL; \
+	} \
+} \
+} while (0);
+#define gcReturn(a) \
+gcKeep(a); \
+gcEnd(); \
+return a;
+#define gcReturnNULL() gcEnd(); return NULL
+#define gcSet(a, ...) gcUnkeep(a); a = __VA_ARGS__
+#define gcRef(a) (ref**)&a
+#define gcStart(...) ref **refs[] = {__VA_ARGS__}
+
 #endif

@@ -37,6 +37,7 @@ either expressed or implied, of the FreeBSD Project.
 #define CHAN_ERROR_DISCONNECTED 1
 #define CHAN_ERROR_CAN_ONLY_HAVE_ONE_WRITER 2
 #define CHAN_ERROR_CAN_ONLY_HAVE_ONE_READER 3
+#define CHAN_ERROR_NO_MESSAGE 4
 #define CHAN_TYPE_DECLARE(type)\
 typedef struct chan_ ## type {\
 	int received, unopened, disconnected, reading, writing, mux;\
@@ -65,13 +66,22 @@ int chan_##type##_read(chan_##type *c, type *val) {\
 	*val = c->val; c->unopened = 0;	c->received = 1; c->reading = 0;\
 	return 0;\
 }\
+int chan_##type##_check(chan_##type *c, type *val) {\
+	if (c->reading) return CHAN_ERROR_NO_MESSAGE; \
+	c->reading = 1;\
+	if (c->disconnected) {c->reading = 0; return CHAN_ERROR_DISCONNECTED;}\
+	if (!c->unopened) {c->reading = 0; return CHAN_ERROR_NO_MESSAGE;} \
+	*val = c->val; c->unopened = 0;	c->received = 1; c->reading = 0;\
+	return 0;\
+} \
 int chan_##type##_read_any(int cn, chan_##type c[], type *val, int *index) {\
-	int i, active;\
+	int i, active, err;\
 	while (1) {\
 		for (active = cn, i = 0; i < cn; i++) {\
 			if (c[i].disconnected) {active--; continue;}\
 			if (!c[i].received && c[i].unopened) {\
-				chan_##type##_read(&c[i], val);\
+				err = chan_##type##_check(&c[i], val);\
+				if (err == CHAN_ERROR_NO_MESSAGE) continue; \
 				*index = i; return 0;\
 			}\
 		}\

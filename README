@@ -29,9 +29,26 @@ ________________________________________________________________________________
 CHANNELS
 
 Instead of making every function thread safe it is only necessary to make the 
-communication between threads safe. The channels are unbuffered and
-synchronized and multiplexing is turned off by default, since two-threads
-communication easily leads to dead locks by human error.
+communication between threads safe.
+
+There are two ways to read from a channel:
+
+	1. Wait until a message arrives. This can result in dead lock if
+	two threads both reads and writes to the same channel but fails the
+	timing when it is their turn to read. If both reads, dead lock appear.
+	To solve this problem multiplexing is turned off by default, so an error
+	message will return when two threads attempts to read from the same channel.
+	Multiplexing is when more than two threads can communicate at the same time.
+	This is turned off by default, since two-threads communication easily
+	leads to dead locks by human error.
+
+	2. Check the 'unopened' flag and then check if the message is still there.
+	This is typical in games when you want to do small tasks in the idle time
+	while you wait for the message.
+	DO NOT use 'read' for this when communicating with more than 2 threads.
+	INSTEAD use 'check'.
+	For example, 'read_any' method uses 'check' internally because it does not
+	attempt to read from a channel when there is no message.
 
 How to use the macro:
 
@@ -54,7 +71,10 @@ chan_<type> c = {.mux = 1};
 chan_<type> arr[3];
 memset(arr, 0, sizeof(chan_<type>)*3);
 
-// Read stuff.
+// Read stuff, waits if there is no message.
+int err = chan_<type>_read(chan_<type> *c, <type> *val);
+
+// Read stuff, but do not wait for a new message.
 int err = chan_<type>_read(chan_<type> *c, <type> *val);
 
 // Write stuff, the struct is sent by value.
@@ -90,3 +110,9 @@ CHAN_ERROR_CAN_ONLY_HAVE_ONE_READER
 
 	When multiplexing is off and one thread attempts to read while
 	another thread is reading, the error above is returned.
+
+CHAN_ERROR_NO_MESSAGE
+
+	When using chan_<type>_check and another thread has already taken
+	the message that arrived.
+

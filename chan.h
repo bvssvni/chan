@@ -48,7 +48,8 @@ int chan_##type##_read(chan_##type *c, type *val);\
 int chan_##type##_readAny(int cn, chan_##type *c[], type *val);
 #define CHAN_TYPE(type)\
 int chan_##type##_write(chan_##type *c, type val) {\
-	if (c->mux) {while (c->unopened || c->writing) usleep(0);}\
+	if (c->mux) {while (c->unopened || c->writing) { \
+	if (c->disconnected) return CHAN_ERROR_DISCONNECTED; usleep(0);}}\
 	else if (c->unopened || c->writing)\
 		return CHAN_ERROR_CAN_ONLY_HAVE_ONE_WRITER;\
 	c->writing = 1; c->val = val; c->unopened = 1;\

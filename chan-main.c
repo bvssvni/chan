@@ -21,7 +21,7 @@ void randomize()
 	seed = time(NULL) % 86400;
 }
 
-void *crack(void *arg)
+void *writeLoop(void *arg)
 {
 	chan_int *ch = (chan_int*)arg;
 	
@@ -29,46 +29,137 @@ void *crack(void *arg)
 		int r = random(100);
 		int err = chan_int_write(ch, r);
 		if (err == CHAN_ERROR_DISCONNECTED) return NULL;
-		usleep(r*1e3);
+		usleep(r);
 	}
 
 	return NULL;
 }
 
-int main(int argc, char *argv[])
-{
-	randomize();
+typedef struct reader_args {
+	int readerId;
+	int readAny;
+	int n;
+	chan_int *ch;
+} reader_args;
 
-	const int n = 4;
+void *readLoop(void *arg)
+{
+	reader_args *args = (reader_args*)arg;
+	int readAny = args->readAny;
+	int verbose = 0;
+
+	int i;
+	int res, index, err;
+	for (i = 0; i < 100; i++) {
+		if (readAny) {
+			err = chan_int_read_any(args->n, args->ch, &res, &index);
+			if (err > 0) {
+				printf("Err %i\n", err);
+				i--;
+			} else if (verbose) {
+				printf("%i Reader %i Thread %i: %i\r\n", 
+				i, args->readerId, index, res);
+			}
+		} else {
+			err = chan_int_read(&args->ch[args->readerId], &res);
+			if (err > 0) {
+				printf("%i Err %i\n", args->readerId, err);
+				i--;
+			}
+			else if (verbose) {
+				printf("%i Reader %i Thread %i: %i\r\n", 
+				i, args->readerId, index, res);
+			}
+		}
+
+	}
+	return NULL;
+}
+
+void test_multiple_channels(int readAny, int threads) {
+	const int n = threads;
 	chan_int ch[n];
 	memset(ch, 0, sizeof(chan_int)*n);
 	pthread_t th[n];
 
+	// Create threads for writing random numbers.
 	int i;
 	for (i = 0; i < n; i++) {
-		pthread_create(&th[i], NULL, crack, &ch[i]);
+		pthread_create(&th[i], NULL, writeLoop, &ch[i]);
 	}
 	
 	clock_t start, end;
 	start = clock();
-	for (i = 0; i < 1000; i++) {
-		int res;
-		int index;
-		chan_int_read_any(n, ch, &res, &index);
-		printf("%i Thread %i: %i\r\n", i, index, res);
+
+	// Create threads for reading random numbers.
+	pthread_t reader_threads[n];
+	reader_args args[n];
+	for (i = 0; i < n; i++) {
+		args[i] = (reader_args){.n = n, .ch = ch, .readerId = i,
+		.readAny = readAny};
+		pthread_create(&reader_threads[i], NULL, readLoop,
+		&args[i]);
 	}
+	for (i = 0; i < n; i++) pthread_join(reader_threads[i], NULL);
+
 	end = clock();
 	
-	// Dual-core Macbook Pro laptop with Windows XP:
-	// threads 1:10
-	// run 1 [57.375,31.0,19.765,14.36,12.016,9.843,8.828,7.875,7.625,7.047]
-	// run 2 [58.921,29.218,21.75,15.094,12.125,10.359,8.843,8.515,7.218,6.875]
-	// Notation: http://www.cutoutpro.com/calc
 	double seconds = (end - start) / (double)CLOCKS_PER_SEC;
 	printf("Seconds: %g\r\n", seconds);
 	
+	// Disconnect all channels and join the threads.
 	for (i = 0; i < n; i++) ch[i].disconnected = 1;
 	for (i = 0; i < n; i++) pthread_join(th[i], NULL);
 	
+}
+
+// Tests what happens when all threads reads and writes to same channel.
+void test_multiplex(int readAny, int threads) {
+	const int n = threads;
+	chan_int ch = {.mux = 1};
+	pthread_t th[n];
+
+	// Create threads for writing random numbers.
+	int i;
+	for (i = 0; i < n; i++) {
+		pthread_create(&th[i], NULL, writeLoop, &ch);
+	}
+	
+	clock_t start, end;
+	start = clock();
+
+	// Create threads for reading random numbers.
+	pthread_t reader_threads[n];
+	reader_args args[n];
+	for (i = 0; i < n; i++) {
+		args[i] = (reader_args){.n = n, .ch = &ch, .readerId = 0,
+		.readAny = readAny};
+		pthread_create(&reader_threads[i], NULL, readLoop,
+		&args[i]);
+	}
+	for (i = 0; i < n; i++) pthread_join(reader_threads[i], NULL);
+
+	end = clock();
+	
+	double seconds = (end - start) / (double)CLOCKS_PER_SEC;
+	printf("Seconds: %g\r\n", seconds);
+	
+	// Disconnect all channels and join the threads.
+	ch.disconnected = 1;
+	for (i = 0; i < n; i++) pthread_join(th[i], NULL);
+	
+}
+
+int main(int argc, char *argv[])
+{
+	randomize();
+	// readAny = 1 means any reader reads from any channel.
+	// This is usually faster because of higher chance to read message.
+	int readAny;
+	int threads = 4;
+	test_multiple_channels(readAny = 0, threads);
+	test_multiple_channels(readAny = 1, threads);
+	test_multiplex(readAny = 0, threads);
+	test_multiplex(readAny = 1, threads);
 	return 0;
 }
